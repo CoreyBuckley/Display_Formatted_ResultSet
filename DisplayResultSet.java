@@ -49,8 +49,9 @@ public final class DisplayResultSet {
 	
 	/**
 	 * Takes a {@code ResultSet} and a {@code String} of format specifiers. This {@code static} function will print
-	 * the contents of a {@code ResultSet} to the console using the passed in <b>headerFormat</b> where each format specifier corresponds to
-	 * the columns from left to right. 
+	 * the contents of a {@code ResultSet} to the console using the passed in <b>headerFormat</b> where each format 
+	 * specifier corresponds to the columns from left to right. 
+	 * The <b>headerFormat</b> should correspond to all columns of <b>results</b>. 
 	 * <br><br>
 	 * <b>Note: </b>The number of format specifiers should match the number of columns in the ResultSet.
 	 * 
@@ -58,7 +59,8 @@ public final class DisplayResultSet {
 	 * @param headerFormat
 	 * @throws SQLException
 	 * 
-	 * This function will print the contents of a ResultSet with the format specifier(s) passed in, where each specifier corresponds to a table column.
+	 * This function will print the contents of a ResultSet with the format specifier(s) passed in, 
+	 * where each specifier corresponds to a table column.
 	 */
 	public static void print(ResultSet results, String headerFormat) throws SQLException { 
 		ResultSetMetaData metadata = results.getMetaData();
@@ -75,8 +77,8 @@ public final class DisplayResultSet {
 	
 	/**
 	 * Takes a {@code Statement} object separate from what generated the passed in {@code ResultSet}. The <b>stmt</b> object is used to
-	 * get all the columns of the {@code ResultSet} so that the default format can be rearranged to match the {@code ResultSet}'s contents, given
-	 * that the default format has more than 1 unique format specifier.
+	 * get all the columns of the {@code ResultSet} so that the default format can be rearranged to match the {@code ResultSet}'s contents, 
+	 * given that the default format has more than 1 unique format specifier.
 	 * 
 	 * @param stmt
 	 * @param results
@@ -96,8 +98,10 @@ public final class DisplayResultSet {
 		String[] rowValues;
 		headerFormat = stretchPattern(localColumnNames.length, defaultFormat);
 		String[] specifiers = getFormatSpecifiers(headerFormat);
-		HashMap<String,String> columnNameToFormatting = bindColumnNameToFormatPattern(absoluteColumnNames, specifiers, maxColumnIndex); 
-		headerFormat = getFormattedHeader(localColumnNames, columnNameToFormatting);
+		if (specifiers.length > 1) { //if we only have one format specifier, then there's no need to rearrange the format
+			HashMap<String,String> columnNameToFormatting = bindColumnNameToFormatPattern(absoluteColumnNames, specifiers, maxColumnIndex); 
+			headerFormat = getRearrangedFormattedHeader(localColumnNames, columnNameToFormatting);
+		}
 		System.out.printf(headerFormat, localColumnNames);	
 		System.out.println(); //line between the header and the records
 		while(results.next()) {
@@ -176,7 +180,8 @@ public final class DisplayResultSet {
 		return values;
 	}
 	
-	private static String getFormattedHeader(String[] localColumnNames, HashMap<String,String> nmToPat) throws SQLException { //this adds a line break to end of format
+	//this adds a line break to end of format
+	private static String getRearrangedFormattedHeader(String[] localColumnNames, HashMap<String,String> nmToPat) throws SQLException {
 		//a names array of the column names in the ResultSet retaining their order should be used
 		//The header will be a rearranged version of the original if anything has changed. At the end of the pattern "\n" will be added
 		String newPattern = "";
@@ -185,24 +190,6 @@ public final class DisplayResultSet {
 		}
 		newPattern += "\n";
 		return newPattern;
-	}
-	
-	private static String stretchPattern(int localColumnCount) {
-		String[] formatSpecifiers = getFormatSpecifiers(defaultFormat);
-		int formatSpecifierCount = formatSpecifiers.length;
-		int quotient = localColumnCount/formatSpecifierCount; //number of times the format divides evenly into the columnCount
-		if(quotient <= 1) { //should be equal to one IDEALLY, but if somehow they pass in a format > columns, should add case for that
-			return defaultFormat;
-		}
-		final StringBuilder pattern = new StringBuilder(); //StringBuilder is more efficient since only one object instance is created (is mutable) unlike strings
-		int remainder = localColumnCount % formatSpecifierCount; //determines if we need to stretch the format because the format has less specifiers than there are columns														 
-		for (int i = 0; i < quotient; i++) {
-			pattern.append(defaultFormat);
-		}
-		for (int i = 0; i < remainder; i++) {
-			pattern.append(formatSpecifiers[i]);
-		}
-		return pattern.toString();
 	}
 	
 	private static String stretchPattern(int localColumnCount, String format) {
