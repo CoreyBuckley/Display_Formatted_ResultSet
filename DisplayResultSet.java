@@ -1,9 +1,4 @@
-/*		DisplayResultSet is a static class used for displaying the contents of a ResultSet to the console.
- * 
- * 		You can set a format for your display either through an Enum of the class or a custom string of format specifiers like "%12s%-50s" etc.
- * 		If you omit a format then the class will automatically use a singular format for all columns of the result set. 
- * 		You can change this default by setting the default singular format or passing in only one format specifier to the printQueryFormatted function.
- * 
+/*
  * 		WHAT I LEARNED FROM MAKING THIS:
  * 
  * 		Executing another operation with the Statement object will automatically close the previous ResultSet if one was created.
@@ -17,7 +12,6 @@
  * 
  * 		You can use printf to print an Array of varargs. Varargs is basically an Object[], so if you have a String[] then you can pass that in because a String
  * 		inherits from Object[]. Similarly, you could pass in an array of 'primitives' if you used the associated boxing class (i.e. Integer). 
- * 
  */
 
 package dbms20;
@@ -30,18 +24,60 @@ import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.HashMap;
 
+/**
+ * 		DisplayResultSet is a static class used for displaying the contents of a ResultSet to the console.
+ * 
+ * 		You can set a format for your display either through an Enum of the class or a custom string of format specifiers like "%12s%-50s" etc.
+ * 		All formats provided in the print function will be stretched to the number of columns in your ResultSet.
+ * 		If you omit a format then the class will automatically use a singular format for all columns of the result set. 
+ * 		You can change this default by setting the default format or passing in only one format specifier to the print function.
+ * 		
+ * 		@author Corey Buckley
+ * 		@version 1.0
+ * 		@since 04/07/2018
+ * 
+ */
 public final class DisplayResultSet {
 	
-	/**
-	 * @author corey
-	 * The Enum Align is used to specify the desired alignment for the contents of a column
-	 */
 	public enum Align {LEFT, RIGHT}; //maybe add center one day
 	
+	//The defaultFormat ideally should be set to the absolute format of the table, that is, a string of
+	//format specifiers in order of the columns. 
+	//This format will then be rearranged to match the current columns of a ResultSet
 	private static String defaultFormat = "%20"; //used if a format is not specified
 	
 	
 	/**
+	 * Takes a {@code ResultSet} and a {@code String} of format specifiers. This {@code static} function will print
+	 * the contents of a {@code ResultSet} to the console using the passed in <b>headerFormat</b> where each format specifier corresponds to
+	 * the columns from left to right. 
+	 * <br><br>
+	 * <b>Note: </b>The number of format specifiers should match the number of columns in the ResultSet.
+	 * 
+	 * @param results
+	 * @param headerFormat
+	 * @throws SQLException
+	 * 
+	 * This function will print the contents of a ResultSet with the format specifier(s) passed in, where each specifier corresponds to a table column.
+	 */
+	public static void print(ResultSet results, String headerFormat) throws SQLException { 
+		ResultSetMetaData metadata = results.getMetaData();
+		final String[] localColumnNames = getLocalColumnNames(metadata);
+		String[] rowValues;
+		headerFormat = stretchPattern(localColumnNames.length, headerFormat); //in the case that the passed in format is < columns, stretch the format to match
+		System.out.printf(headerFormat, localColumnNames);	
+		System.out.println(); //line between the header and the records
+		while(results.next()) {
+			rowValues = getRowValues(results, localColumnNames);
+			System.out.printf(headerFormat, rowValues);
+		} 
+	}
+	
+	/**
+	 * Takes a {@code Statement} object separate from what generated the passed in {@code ResultSet}. The <b>stmt</b> object is used to
+	 * get all the columns of the {@code ResultSet} so that the default format can be rearranged to match the {@code ResultSet}'s contents, given
+	 * that the default format has more than 1 unique format specifier.
+	 * 
 	 * @param stmt
 	 * @param results
 	 * @param headerFormat
@@ -49,36 +85,16 @@ public final class DisplayResultSet {
 	 * 
 	 * This function will print the contents of a ResultSet with the format specifier(s) passed in, where each specifier corresponds to a table column.
 	 */
-	public static void print(Statement stmt, ResultSet results, String headerFormat) throws SQLException { 
-		ResultSetMetaData metadata = results.getMetaData();
-		ResultSet all = stmt.executeQuery("SELECT * FROM Comics");
-		final String[] localColumnNames = getLocalColumnNames(metadata);
-		final String[] absoluteColumnNames = getAbsoluteColumnNames(all);
-		final int maxColumnIndex = getMaxiumumColumnIndex(all, localColumnNames);
-		String[] rowValues;
-		headerFormat = stretchPattern(localColumnNames.length, headerFormat);
-		String[] specifiers = getFormatSpecifiers(headerFormat);
-		HashMap<String,String> columnNameToFormatting = bindColumnNameToFormatPattern(absoluteColumnNames, specifiers, maxColumnIndex);
-		headerFormat = getFormattedHeader(localColumnNames, columnNameToFormatting);
-		System.out.printf(headerFormat, localColumnNames);	
-		System.out.println(); //line between the header and the records
-		while(results.next()) {
-			rowValues = getRowValues(results, localColumnNames);
-			System.out.printf(headerFormat, rowValues);
-		} 
-		stmt.close(); //releasing the resources of the statement also closes the ResultSet (according to doc)
-	}
-	
 	public static void print(Statement stmt, ResultSet results) throws SQLException { 
 		long begin = System.nanoTime();
 		ResultSetMetaData metadata = results.getMetaData();
 		ResultSet all = stmt.executeQuery("SELECT * FROM Comics");
-		String headerFormat = "%-15s%12s%15s %-40s%13s%17s";
+		String headerFormat;
 		final String[] localColumnNames = getLocalColumnNames(metadata);
 		final String[] absoluteColumnNames = getAbsoluteColumnNames(all);
 		final int maxColumnIndex = getMaxiumumColumnIndex(all, localColumnNames);
 		String[] rowValues;
-		headerFormat = stretchPattern(localColumnNames.length, headerFormat);
+		headerFormat = stretchPattern(localColumnNames.length, defaultFormat);
 		String[] specifiers = getFormatSpecifiers(headerFormat);
 		HashMap<String,String> columnNameToFormatting = bindColumnNameToFormatPattern(absoluteColumnNames, specifiers, maxColumnIndex); 
 		headerFormat = getFormattedHeader(localColumnNames, columnNameToFormatting);
