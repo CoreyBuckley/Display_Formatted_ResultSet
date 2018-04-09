@@ -34,7 +34,7 @@ import java.util.HashMap;
  * 		
  * 		@author Corey Buckley
  * 		@version 1.0
- * 		@since 04/07/2018
+ * 		@since 04/09/2018
  * 
  */
 public final class DisplayResultSet {
@@ -44,7 +44,7 @@ public final class DisplayResultSet {
 	//The defaultFormat ideally should be set to the absolute format of the table, that is, a string of
 	//format specifiers in order of the columns. 
 	//This format will then be rearranged to match the current columns of a ResultSet
-	private static String defaultFormat = "%20"; //used if a format is not specified
+	private static String defaultFormat = "%-20s"; //used if a format is not specified
 	
 	
 	/**
@@ -67,7 +67,7 @@ public final class DisplayResultSet {
 		final String[] localColumnNames = getLocalColumnNames(metadata);
 		String[] rowValues;
 		headerFormat = stretchPattern(localColumnNames.length, headerFormat); //in the case that the passed in format is < columns, stretch the format to match
-		System.out.printf(headerFormat, localColumnNames);	
+		System.out.printf(headerFormat, localColumnNames);
 		System.out.println(); //line between the header and the records
 		while(results.next()) {
 			rowValues = getRowValues(results, localColumnNames);
@@ -91,22 +91,23 @@ public final class DisplayResultSet {
 		long begin = System.nanoTime();
 		ResultSetMetaData metadata = results.getMetaData();
 		ResultSet all = stmt.executeQuery("SELECT * FROM Comics");
-		String headerFormat;
+		String headerFormat = defaultFormat;
 		final String[] localColumnNames = getLocalColumnNames(metadata);
 		final String[] absoluteColumnNames = getAbsoluteColumnNames(all);
 		final int maxColumnIndex = getMaxiumumColumnIndex(all, localColumnNames);
 		String[] rowValues;
-		headerFormat = stretchPattern(localColumnNames.length, defaultFormat);
 		String[] specifiers = getFormatSpecifiers(headerFormat);
 		if (specifiers.length > 1) { //if we only have one format specifier, then there's no need to rearrange the format
 			HashMap<String,String> columnNameToFormatting = bindColumnNameToFormatPattern(absoluteColumnNames, specifiers, maxColumnIndex); 
 			headerFormat = getRearrangedFormattedHeader(localColumnNames, columnNameToFormatting);
 		}
+		headerFormat = stretchPattern(localColumnNames.length, defaultFormat);
 		System.out.printf(headerFormat, localColumnNames);	
-		System.out.println(); //line between the header and the records
+		System.out.println("\n"); //2 lines between the header and the records
 		while(results.next()) {
 			rowValues = getRowValues(results, localColumnNames);
 			System.out.printf(headerFormat, rowValues);
+			System.out.println();
 		} 
 		stmt.close(); //releasing the resources of the statement also closes the ResultSet (according to doc)
 		long end = System.nanoTime();
@@ -123,6 +124,9 @@ public final class DisplayResultSet {
 		defaultFormat = s;
 	}
 	
+	//uses the metadata of a ResultSet in order to get columnCount and and loop through the table (linear) and 
+	//get the column name with getColumnName(). Can print the columns with prinf() easily when in a String[] 
+	//and access the column names programmatically when we need to get row values
 	private static String[] getLocalColumnNames(ResultSetMetaData metadata) throws SQLException { //will get the column names in the ResultSet
 		int columnCount = metadata.getColumnCount();
 		String[] columnNames = new String[columnCount];
@@ -132,6 +136,11 @@ public final class DisplayResultSet {
 		return columnNames;
 	}
 	
+	//Gets the column names of the whole table by using a ResultSet that came from "SELECT * FROM ..."
+	//Purpose of this method is to eventually bind the column name to a format in a HashMap so we can
+	//get the format of a column. This is only used in print(Statement, ResultSet) because we're using
+	//the defaultFormat (which applies to the whole table) and we have to rearrange the format
+	//if columns are out of order
 	private static String[] getAbsoluteColumnNames(ResultSet allColumnQuery) throws SQLException { //will get the column names in the Table
 		ResultSetMetaData metadata = allColumnQuery.getMetaData();
 		int columnCount = metadata.getColumnCount();
@@ -153,8 +162,10 @@ public final class DisplayResultSet {
 		return indicies[len-1];
 	}
 	
+	//need to fix so that it doesn't rely on the columns being consecutive/sequential 
+	//Bind all table column names to their approp. pattern. 
+	//absoluteColumnNames should be the intrinsic order of the columns in the table. absoluteColumnNames and patterns are parallel arrays
 	private static HashMap<String,String> bindColumnNameToFormatPattern(String[] absoluteColumnNames, String[] patterns, int maxIndex) throws SQLException {
-		//Bind the column names to their approp. pattern. names[] should be the intrinsic order of the columns in the table. names and patterns are parallel arrays
 		HashMap<String, String> namesToPattern = new HashMap<String, String>(maxIndex);
 		for (int i = 0; i < maxIndex; i++) {
 			namesToPattern.put(absoluteColumnNames[i], patterns[i]);
@@ -162,7 +173,9 @@ public final class DisplayResultSet {
 		return namesToPattern;
 	}
 	
-	//
+	//Returns a String[] of row values, uses the columnNames of the ResultSet as arguments 
+	//to the ResultSet's getString() method.
+	//Currently formats doubles to a USD currency format
 	private static String[] getRowValues(ResultSet rs, String[] localColumnNames) throws SQLException {
 		ResultSetMetaData metadata = rs.getMetaData();
 		int columnCount = localColumnNames.length;
@@ -180,10 +193,9 @@ public final class DisplayResultSet {
 		return values;
 	}
 	
-	//this adds a line break to end of format
+	//The header will be a rearranged version of the original if anything has changed. At the end of the pattern "\n" will be added
+	//a names array of the column names in the ResultSet retaining their order should be used
 	private static String getRearrangedFormattedHeader(String[] localColumnNames, HashMap<String,String> nmToPat) throws SQLException {
-		//a names array of the column names in the ResultSet retaining their order should be used
-		//The header will be a rearranged version of the original if anything has changed. At the end of the pattern "\n" will be added
 		String newPattern = "";
 		for (String name : localColumnNames) {
 			newPattern += nmToPat.get(name);
@@ -192,6 +204,8 @@ public final class DisplayResultSet {
 		return newPattern;
 	}
 	
+	//If the format passed in is < the number of columns, than we stretch it so we
+	//match the column count and we won't have problems with printf. 
 	private static String stretchPattern(int localColumnCount, String format) {
 		String[] formatSpecifiers = getFormatSpecifiers(format);
 		int formatSpecifierCount = formatSpecifiers.length;
@@ -210,6 +224,7 @@ public final class DisplayResultSet {
 		return pattern.toString();
 	}
 	
+	//Takes a string of format specifiers "%20s%20s" and produces ["%20s","%20s"]
 	private static String[] getFormatSpecifiers(String format) {
 		String regEx_SplitByAndIncludeDelimeter = "((?<=%)|(?=%))";
 		String[] elements = format.split(regEx_SplitByAndIncludeDelimeter);
@@ -218,11 +233,19 @@ public final class DisplayResultSet {
 		int formatSpecifierCount = elements.length/2;
 		String[] specifiers = new String[formatSpecifierCount];
 		for (int i=0; i<formatSpecifierCount; i++) {
-			specifiers[i] = elements[i*2] + elements[i*2+1];
+			specifiers[i] = elements[i*2] + elements[i*2+1]; //concatenate a pair of elements and insert into the new array
 		}
 		return specifiers; 
 	}
 
+	//Debug function. Prints to the console the state of the ResultSet:
+	//current row, closed, after last row, on last row 
+	private static void getResultSetStatus(ResultSet results) throws SQLException {
+		System.out.println("ROW CURSOR ON?: " + results.getRow());
+		System.out.println("CURSOR CLOSED?: " + results.isClosed());
+		System.out.println("CURSOR AFTER LAST ROW?: " + results.isAfterLast());
+		System.out.println("CURSOR ON LAST ROW?: " + results.isLast()); 
+	}
 	
 }
 
